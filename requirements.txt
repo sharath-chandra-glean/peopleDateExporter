@@ -1,0 +1,7 @@
+# Core dependencies
+requests==2.31.0
+urllib3==2.1.0
+
+# Type hints
+typing-extensions==4.9.0
+

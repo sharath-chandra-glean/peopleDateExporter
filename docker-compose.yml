@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  people-exporter:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: people-data-exporter
+    env_file:
+      - .env
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - DRY_RUN=${DRY_RUN:-false}
+    restart: "no"
+    networks:
+      - exporter-network
+
+networks:
+  exporter-network:
+    driver: bridge
+
