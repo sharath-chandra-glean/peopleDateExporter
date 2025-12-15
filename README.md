@@ -6,11 +6,13 @@ A Python-based application that synchronizes user and group data from Keycloak t
 
 - 🔐 Fetches users and groups from Keycloak Admin API
 - 📤 Pushes formatted data to Glean People API
+- 🗺️ Intelligent field mapping from Keycloak to Glean
 - 🐳 Fully Dockerized for cloud deployment
 - ⚙️ Environment-based configuration
 - 📊 Comprehensive logging
 - 🔄 Automatic retry logic for API calls
 - 🧪 Dry-run mode for testing
+- 🔀 Support for both bulk and individual indexing
 
 ## Project Structure
 
@@ -62,6 +64,7 @@ Copy `env.template` to `.env` and configure the following variables:
 - `GLEAN_DATASOURCE`: Datasource identifier for Glean
 - `GLEAN_TIMEOUT`: Request timeout in seconds (default: 30)
 - `GLEAN_USE_BULK_INDEX`: Use bulk indexing API (`true`) or individual indexing API (`false`) (default: true)
+- `GLEAN_DISABLE_STALE_DATA_DELETION`: Prevent Glean from automatically deleting employees not in the upload (`true`/`false`, default: false)
 
 #### Application Configuration
 - `LOG_LEVEL`: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
@@ -81,6 +84,78 @@ Copy `env.template` to `.env` and configure the following variables:
 
 1. Obtain an API token from Glean with people indexing permissions
 2. Create a datasource identifier for your Keycloak integration
+
+## Field Mapping
+
+The application automatically maps Keycloak user fields to Glean employee fields:
+
+### Core Fields
+
+| Keycloak Field | Glean Employee Field | Notes |
+|----------------|---------------------|-------|
+| `email` | `email` | Required |
+| `firstName` | `firstName` | |
+| `lastName` | `lastName` | |
+| `id` | `id` | Keycloak user ID |
+| `enabled` | `status` | `true` → `CURRENT`, `false` → `FORMER` |
+| `createdTimestamp` | `startDate` | Converted from Unix timestamp to YYYY-MM-DD |
+
+### Attributes Mapping
+
+Keycloak custom attributes are extracted and mapped to Glean fields:
+
+| Keycloak Attribute | Glean Employee Field | Type |
+|-------------------|---------------------|------|
+| `attributes.department` | `department` | String or first item of array |
+| `attributes.title` | `title` | String or first item of array |
+| `attributes.businessUnit` | `businessUnit` | String or first item of array |
+| `attributes.phoneNumber` | `phoneNumber` | String or first item of array |
+| `attributes.managerEmail` | `managerEmail` | String or first item of array |
+| `attributes.bio` | `bio` | String or first item of array |
+| `attributes.photoUrl` | `photoUrl` | String or first item of array |
+
+### Example Mapping
+
+**Keycloak Input:**
+```json
+{
+  "id": "5797cc81-da1c-442e-b010-b5a04149c314",
+  "username": "awaneendra.tiwari@sasandbox.com",
+  "firstName": "Awaneendra",
+  "lastName": "Tiwari",
+  "email": "awaneendra.tiwari@sasandbox.com",
+  "emailVerified": true,
+  "enabled": true,
+  "createdTimestamp": 1753366940778,
+  "attributes": {
+    "department": ["Sales"],
+    "title": ["Sales Manager"],
+    "phoneNumber": ["+1-555-0123"]
+  }
+}
+```
+
+**Glean Output:**
+```json
+{
+  "email": "awaneendra.tiwari@sasandbox.com",
+  "firstName": "Awaneendra",
+  "lastName": "Tiwari",
+  "id": "5797cc81-da1c-442e-b010-b5a04149c314",
+  "department": "Sales",
+  "title": "Sales Manager",
+  "phoneNumber": "+1-555-0123",
+  "status": "CURRENT",
+  "startDate": "2025-01-23"
+}
+```
+
+### Handling Missing Data
+
+- Fields not present in Keycloak are omitted from the Glean payload
+- Empty or null values are not sent to Glean
+- Array attributes extract the first element
+- Unmapped Keycloak fields are ignored
 
 ## Usage
 
@@ -156,15 +231,28 @@ docker run \
 
 ### Bulk Indexing (Default)
 
-Bulk indexing pushes all users in a single API call, which is faster and more efficient for large datasets:
+Bulk indexing pushes all users in a single API call using the `/api/index/v1/bulkindexemployees` endpoint, which is faster and more efficient for large datasets:
 
 ```bash
 GLEAN_USE_BULK_INDEX=true docker-compose up
 ```
 
+**Features:**
+- Single API call for all employees
+- Pagination support for very large datasets
+- Option to disable stale data deletion
+- Automatic handling of upload sessions
+
+**Stale Data Deletion:**
+By default, Glean will remove employees from its system that are not included in your upload. To prevent this behavior (useful for incremental syncs):
+
+```bash
+GLEAN_DISABLE_STALE_DATA_DELETION=true docker-compose up
+```
+
 ### Individual Indexing
 
-Individual indexing pushes users one at a time using the individual employee index API. This is useful when:
+Individual indexing pushes users one at a time using the individual employee index API (`/api/index/v1/indexemployee`). This is useful when:
 - You need more granular control over each user
 - You want to continue syncing even if some users fail
 - You're dealing with API rate limits

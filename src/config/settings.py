@@ -22,6 +22,7 @@ class GleanConfig:
     datasource: str
     timeout: int = 30
     use_bulk_index: bool = True
+    disable_stale_data_deletion: bool = False
 
 
 @dataclass
@@ -75,6 +76,7 @@ class Settings:
             raise ValueError(f"Missing required environment variables: {', '.join(missing)}")
 
         use_bulk_index = os.getenv("GLEAN_USE_BULK_INDEX", "true").lower() in ("true", "1", "yes")
+        disable_stale_data_deletion = os.getenv("GLEAN_DISABLE_STALE_DATA_DELETION", "false").lower() in ("true", "1", "yes")
 
         return GleanConfig(
             api_url=os.getenv("GLEAN_API_URL"),
@@ -82,6 +84,7 @@ class Settings:
             datasource=os.getenv("GLEAN_DATASOURCE"),
             timeout=int(os.getenv("GLEAN_TIMEOUT", "30")),
             use_bulk_index=use_bulk_index,
+            disable_stale_data_deletion=disable_stale_data_deletion,
         )
 
     def _load_app_config(self) -> AppConfig:

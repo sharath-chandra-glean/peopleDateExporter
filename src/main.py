@@ -33,6 +33,7 @@ class PeopleDataExporter:
             datasource=self.settings.glean.datasource,
             timeout=self.settings.glean.timeout,
             use_bulk_index=self.settings.glean.use_bulk_index,
+            disable_stale_data_deletion=self.settings.glean.disable_stale_data_deletion,
         )
 
     def sync_users(self) -> int:
@@ -134,12 +135,12 @@ class PeopleDataExporter:
             self.keycloak_client.authenticate()
             
             users_synced = self.sync_users()
-            groups_synced = self.sync_groups()
+            # groups_synced = self.sync_groups()
             
             logger.info("=" * 60)
             logger.info("Sync completed successfully")
             logger.info(f"  Users synced: {users_synced}")
-            logger.info(f"  Groups synced: {groups_synced}")
+            # logger.info(f"  Groups synced: {groups_synced}")
             logger.info("=" * 60)
             
         except Exception as e:
