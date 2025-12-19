@@ -255,9 +255,9 @@ Authorization: Bearer <token>
 
 **Parameters:**
 - `employees`: Array of employee objects
+- `uploadId`: Auto-generated UUID v4 identifier for the upload session
 - `isFirstPage`: Set to `true` for first page of multi-page uploads
 - `isLastPage`: Set to `true` for last page of multi-page uploads
-- `uploadId`: Optional identifier for continuation of multi-page uploads
 - `forceRestartUpload`: Force restart of an existing upload session
 - `disableStaleDataDeletionCheck`: Prevent deletion of employees not in this upload
 

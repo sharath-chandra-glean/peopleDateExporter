@@ -1,5 +1,6 @@
 """Glean API Client for pushing people data."""
 import logging
+import uuid
 from datetime import datetime
 from typing import Dict, List
 import requests
@@ -95,7 +96,7 @@ class GleanClient:
             employee_data["lastName"] = last_name
         
         if user_id:
-            employee_data["id"] = user_id
+            employee_data["id"] = email
         
         if attributes:
             if "department" in attributes and attributes["department"]:
@@ -202,7 +203,7 @@ class GleanClient:
 
         Args:
             employees: List of formatted employee data
-            upload_id: Optional upload identifier for multi-page uploads
+            upload_id: Optional upload identifier for multi-page uploads (auto-generated if not provided)
             is_first_page: Whether this is the first page of a multi-page upload
             is_last_page: Whether this is the last page of a multi-page upload
             force_restart_upload: Force restart of an existing upload
@@ -213,14 +214,16 @@ class GleanClient:
         """
         logger.info(f"Bulk indexing {len(employees)} employees to Glean")
 
+        if not upload_id:
+            upload_id = str(uuid.uuid4())
+            logger.debug(f"Generated upload_id: {upload_id}")
+
         payload = {
+            "uploadId": upload_id,
             "employees": employees,
             "isFirstPage": is_first_page,
             "isLastPage": is_last_page,
         }
-
-        if upload_id:
-            payload["uploadId"] = upload_id
 
         if force_restart_upload:
             payload["forceRestartUpload"] = force_restart_upload
@@ -235,10 +238,10 @@ class GleanClient:
                 json=payload,
                 timeout=self.timeout,
             )
+            logger.info(f"Response from Glean: {response}")
             response.raise_for_status()
-            result = response.json()
             logger.info("Successfully bulk indexed employees to Glean")
-            return result
+            return
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to bulk index employees to Glean: {e}")
             if hasattr(e.response, 'text'):

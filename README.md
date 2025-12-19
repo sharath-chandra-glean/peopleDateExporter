@@ -241,6 +241,7 @@ GLEAN_USE_BULK_INDEX=true docker-compose up
 - Single API call for all employees
 - Pagination support for very large datasets
 - Option to disable stale data deletion
+- Automatic generation of upload session IDs (UUID v4)
 - Automatic handling of upload sessions
 
 **Stale Data Deletion:**
