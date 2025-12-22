@@ -57,8 +57,10 @@ echo -e "${GREEN}Building Docker image...${NC}"
 echo "Image: $FULL_IMAGE_NAME"
 echo ""
 
-# Build the Docker image
-docker build -t "$FULL_IMAGE_NAME" .
+# Build the Docker image for amd64/linux (required by Cloud Run)
+# Use --platform flag to ensure compatibility with Cloud Run
+echo -e "${YELLOW}Building for linux/amd64 platform (Cloud Run requirement)${NC}"
+docker build --platform linux/amd64 -t "$FULL_IMAGE_NAME" .
 
 echo ""
 echo -e "${GREEN}Pushing image to Artifact Registry...${NC}"

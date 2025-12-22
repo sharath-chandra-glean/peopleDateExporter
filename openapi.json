@@ -1,0 +1,399 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "People Data Exporter API",
+    "description": "HTTP API for syncing user and group data from Keycloak to Glean People API.\n\nThis service provides endpoints for triggering data synchronization and health monitoring.\nDesigned to run on cloud platforms (GCP Cloud Run, AWS ECS Fargate) with scheduled triggers.\n\n**Key Features:**\n- Automated daily sync via Cloud Scheduler/EventBridge\n- Health check endpoint for monitoring\n- Manual sync trigger capability\n- Comprehensive error handling\n\n**Authentication:**\n- GCP Cloud Run: OIDC token-based authentication\n- AWS ECS: IAM-based authentication\n- Local: No authentication (development only)",
+    "version": "1.0.0",
+    "contact": {
+      "name": "People Data Exporter"
+    },
+    "license": {
+      "name": "MIT",
+      "url": "https://opensource.org/licenses/MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://people-data-exporter-{hash}-uc.a.run.app",
+      "description": "GCP Cloud Run (Production)",
+      "variables": {
+        "hash": {
+          "default": "xxxxx",
+          "description": "Auto-generated Cloud Run service hash"
+        }
+      }
+    },
+    {
+      "url": "http://localhost:8080",
+      "description": "Local Development Server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "health",
+      "description": "Health check and monitoring endpoints"
+    },
+    {
+      "name": "sync",
+      "description": "Data synchronization operations"
+    },
+    {
+      "name": "info",
+      "description": "Service information"
+    }
+  ],
+  "paths": {
+    "/": {
+      "get": {
+        "tags": ["info"],
+        "summary": "Service Information",
+        "description": "Returns basic information about the service and available endpoints",
+        "operationId": "getServiceInfo",
+        "responses": {
+          "200": {
+            "description": "Service information retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceInfo"
+                },
+                "example": {
+                  "service": "people-data-exporter",
+                  "version": "1.0.0",
+                  "endpoints": {
+                    "health": "/health",
+                    "sync": "/sync (POST)"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": ["health"],
+        "summary": "Health Check",
+        "description": "Checks if the service is healthy and ready to accept requests.\n\nThis endpoint is used by:\n- Cloud platform health checks\n- Monitoring systems\n- Load balancers\n- Cloud Scheduler pre-execution verification",
+        "operationId": "healthCheck",
+        "responses": {
+          "200": {
+            "description": "Service is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                },
+                "example": {
+                  "status": "healthy",
+                  "service": "people-data-exporter",
+                  "timestamp": "2025-01-23T10:30:00.000000"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Service is unhealthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sync": {
+      "post": {
+        "tags": ["sync"],
+        "summary": "Trigger Data Sync",
+        "description": "Triggers a synchronization of user and group data from Keycloak to Glean.\n\n**Process:**\n1. Authenticates with Keycloak\n2. Fetches all users (or limited by MAX_USERS)\n3. Fetches all groups and their members\n4. Transforms data according to field mappings\n5. Pushes formatted data to Glean People API\n\n**Execution Time:**\n- Small dataset (< 100 users): ~30 seconds\n- Medium dataset (100-1000 users): 2-5 minutes\n- Large dataset (1000+ users): 5-30 minutes\n\n**Authentication Required:**\n- GCP: OIDC token (automatically provided by Cloud Scheduler)\n- AWS: IAM role (automatically provided by EventBridge)\n\n**Note:** This endpoint may take several minutes to complete.",
+        "operationId": "triggerSync",
+        "requestBody": {
+          "description": "Optional parameters for sync operation",
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "dry_run": {
+                    "type": "boolean",
+                    "description": "If true, performs a dry run without pushing to Glean",
+                    "default": false
+                  },
+                  "max_users": {
+                    "type": "integer",
+                    "description": "Maximum number of users to sync (for testing)",
+                    "example": 100
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sync completed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncSuccessResponse"
+                },
+                "example": {
+                  "status": "success",
+                  "message": "Data sync completed successfully",
+                  "start_time": "2025-01-23T10:30:00.000000",
+                  "end_time": "2025-01-23T10:35:00.000000",
+                  "duration_seconds": 300
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Sync failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ConfigurationErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SyncErrorResponse"
+                    }
+                  ]
+                },
+                "examples": {
+                  "configuration_error": {
+                    "summary": "Configuration Error",
+                    "value": {
+                      "status": "error",
+                      "error_type": "configuration_error",
+                      "message": "Missing required environment variable KEYCLOAK_CLIENT_SECRET",
+                      "timestamp": "2025-01-23T10:30:00.000000"
+                    }
+                  },
+                  "sync_error": {
+                    "summary": "Sync Error",
+                    "value": {
+                      "status": "error",
+                      "error_type": "sync_error",
+                      "message": "Failed to authenticate with Keycloak API",
+                      "timestamp": "2025-01-23T10:30:00.000000"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ServiceInfo": {
+        "type": "object",
+        "description": "Basic service information",
+        "required": ["service", "version", "endpoints"],
+        "properties": {
+          "service": {
+            "type": "string",
+            "description": "Service name",
+            "example": "people-data-exporter"
+          },
+          "version": {
+            "type": "string",
+            "description": "Service version",
+            "example": "1.0.0"
+          },
+          "endpoints": {
+            "type": "object",
+            "description": "Available API endpoints",
+            "properties": {
+              "health": {
+                "type": "string",
+                "example": "/health"
+              },
+              "sync": {
+                "type": "string",
+                "example": "/sync (POST)"
+              }
+            }
+          }
+        }
+      },
+      "HealthResponse": {
+        "type": "object",
+        "description": "Health check response",
+        "required": ["status", "service", "timestamp"],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["healthy", "unhealthy"],
+            "description": "Current health status",
+            "example": "healthy"
+          },
+          "service": {
+            "type": "string",
+            "description": "Service name",
+            "example": "people-data-exporter"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Timestamp of health check (ISO 8601 format)",
+            "example": "2025-01-23T10:30:00.000000"
+          }
+        }
+      },
+      "SyncSuccessResponse": {
+        "type": "object",
+        "description": "Successful sync operation response",
+        "required": ["status", "message", "start_time", "end_time", "duration_seconds"],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["success"],
+            "description": "Operation status",
+            "example": "success"
+          },
+          "message": {
+            "type": "string",
+            "description": "Success message",
+            "example": "Data sync completed successfully"
+          },
+          "start_time": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Sync start time (ISO 8601 format)",
+            "example": "2025-01-23T10:30:00.000000"
+          },
+          "end_time": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Sync end time (ISO 8601 format)",
+            "example": "2025-01-23T10:35:00.000000"
+          },
+          "duration_seconds": {
+            "type": "number",
+            "format": "float",
+            "description": "Total sync duration in seconds",
+            "example": 300.5
+          }
+        }
+      },
+      "ConfigurationErrorResponse": {
+        "type": "object",
+        "description": "Configuration error response",
+        "required": ["status", "error_type", "message", "timestamp"],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["error"],
+            "example": "error"
+          },
+          "error_type": {
+            "type": "string",
+            "enum": ["configuration_error"],
+            "description": "Type of error",
+            "example": "configuration_error"
+          },
+          "message": {
+            "type": "string",
+            "description": "Detailed error message",
+            "example": "Missing required environment variable KEYCLOAK_CLIENT_SECRET"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Error timestamp (ISO 8601 format)",
+            "example": "2025-01-23T10:30:00.000000"
+          }
+        }
+      },
+      "SyncErrorResponse": {
+        "type": "object",
+        "description": "Sync operation error response",
+        "required": ["status", "error_type", "message", "timestamp"],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["error"],
+            "example": "error"
+          },
+          "error_type": {
+            "type": "string",
+            "enum": ["sync_error"],
+            "description": "Type of error",
+            "example": "sync_error"
+          },
+          "message": {
+            "type": "string",
+            "description": "Detailed error message",
+            "example": "Failed to authenticate with Keycloak API"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Error timestamp (ISO 8601 format)",
+            "example": "2025-01-23T10:30:00.000000"
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "description": "Generic error response",
+        "required": ["status", "error", "message"],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["error"],
+            "example": "error"
+          },
+          "error": {
+            "type": "string",
+            "description": "Error name/type",
+            "example": "internal_server_error"
+          },
+          "message": {
+            "type": "string",
+            "description": "Error description",
+            "example": "An unexpected error occurred"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "OIDC token-based authentication (GCP Cloud Run)\n\nTo obtain a token for testing:\n```bash\ngcloud auth print-identity-token\n```"
+      },
+      "IAMAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "Authorization",
+        "description": "AWS IAM-based authentication (ECS Fargate)\n\nAutomatically handled by AWS SDK/CLI"
+      }
+    }
+  },
+  "security": [
+    {
+      "BearerAuth": []
+    },
+    {
+      "IAMAuth": []
+    }
+  ],
+  "externalDocs": {
+    "description": "Full deployment documentation",
+    "url": "https://github.com/your-repo/peopleDataExporter"
+  }
+}
+

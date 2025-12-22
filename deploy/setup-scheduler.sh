@@ -100,8 +100,8 @@ gcloud scheduler jobs create http "$JOB_NAME" \
     --oidc-token-audience="$SERVICE_URL" \
     --max-retry-attempts=2 \
     --max-retry-duration=3600s \
-    --min-backoff-duration=30s \
-    --max-backoff-duration=300s \
+    --min-backoff=30s \
+    --max-backoff=300s \
     --project="$PROJECT_ID"
 
 echo ""
