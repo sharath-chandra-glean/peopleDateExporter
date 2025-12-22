@@ -1,0 +1,81 @@
+# Cloud Run service.yaml
+# This can be used with: gcloud run services replace service.yaml
+
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: people-data-exporter
+  labels:
+    cloud.googleapis.com/location: us-central1
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: '0'
+        autoscaling.knative.dev/maxScale: '1'
+        run.googleapis.com/execution-environment: gen2
+    spec:
+      containerConcurrency: 1
+      timeoutSeconds: 3600
+      serviceAccountName: PROJECT_NUMBER-compute@developer.gserviceaccount.com
+      containers:
+      - image: us-central1-docker.pkg.dev/PROJECT_ID/people-exporter/people-data-exporter:latest
+        ports:
+        - name: http1
+          containerPort: 8080
+        resources:
+          limits:
+            cpu: '1'
+            memory: 512Mi
+        env:
+        - name: LOG_LEVEL
+          value: INFO
+        - name: KEYCLOAK_TIMEOUT
+          value: '30'
+        - name: GLEAN_TIMEOUT
+          value: '30'
+        - name: GLEAN_USE_BULK_INDEX
+          value: 'true'
+        - name: GLEAN_DISABLE_STALE_DATA_DELETION
+          value: 'false'
+        - name: DRY_RUN
+          value: 'false'
+        - name: KEYCLOAK_BASE_URL
+          valueFrom:
+            secretKeyRef:
+              key: latest
+              name: KEYCLOAK_BASE_URL
+        - name: KEYCLOAK_REALM
+          valueFrom:
+            secretKeyRef:
+              key: latest
+              name: KEYCLOAK_REALM
+        - name: KEYCLOAK_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              key: latest
+              name: KEYCLOAK_CLIENT_ID
+        - name: KEYCLOAK_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              key: latest
+              name: KEYCLOAK_CLIENT_SECRET
+        - name: GLEAN_API_URL
+          valueFrom:
+            secretKeyRef:
+              key: latest
+              name: GLEAN_API_URL
+        - name: GLEAN_API_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: latest
+              name: GLEAN_API_TOKEN
+        - name: GLEAN_DATASOURCE
+          valueFrom:
+            secretKeyRef:
+              key: latest
+              name: GLEAN_DATASOURCE
+  traffic:
+  - percent: 100
+    latestRevision: true
+

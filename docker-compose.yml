@@ -1,6 +1,5 @@
-version: '3.8'
-
 services:
+  # Batch mode - Run once and exit
   people-exporter:
     build:
       context: .
@@ -11,11 +10,38 @@ services:
     environment:
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - DRY_RUN=${DRY_RUN:-false}
+    command: ["python", "-m", "src.main"]  # Batch mode
     restart: "no"
     networks:
       - exporter-network
 
+  # HTTP Server mode - For Cloud Run or local testing
+  people-exporter-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: people-data-exporter-server
+    env_file:
+      - .env
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - DRY_RUN=${DRY_RUN:-false}
+      - PORT=8080
+    command: ["python", "-m", "src.server"]  # HTTP server mode
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    networks:
+      - exporter-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
 networks:
   exporter-network:
     driver: bridge
+
 

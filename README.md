@@ -281,7 +281,47 @@ DRY_RUN=true python -m src.main
 
 ## Cloud Deployment
 
-### Kubernetes
+### Google Cloud Platform (Recommended) ⭐
+
+**Complete GCP deployment with Cloud Run + Cloud Scheduler**
+
+The easiest and most cost-effective way to deploy this project. Includes:
+- ✅ HTTP endpoints for health checks and sync triggers
+- ✅ Daily automated cron jobs
+- ✅ Secure secret management
+- ✅ Auto-scaling (scales to zero)
+- ✅ ~$1-6/month cost
+
+**Quick Start:**
+
+```bash
+# 1. Set your GCP project
+export GCP_PROJECT_ID="your-project-id"
+
+# 2. Run deployment scripts
+./deploy/setup-secrets.sh        # Store credentials
+./deploy/build-and-push.sh       # Build & push Docker image
+./deploy/deploy-cloud-run.sh     # Deploy service
+./deploy/setup-scheduler.sh      # Setup daily cron
+
+# 3. Test
+./deploy/test-endpoints.sh
+```
+
+📖 **Full Guide:** [GCP_DEPLOYMENT.md](./GCP_DEPLOYMENT.md)  
+🚀 **Quick Start:** [QUICKSTART_GCP.md](./QUICKSTART_GCP.md)
+
+**Endpoints:**
+- `GET /health` - Health check for monitoring
+- `POST /sync` - Trigger data sync manually or via cron
+- `GET /` - Service information
+
+---
+
+### Other Cloud Platforms
+
+<details>
+<summary><b>Kubernetes</b></summary>
 
 Example Kubernetes CronJob:
 
@@ -291,7 +331,7 @@ kind: CronJob
 metadata:
   name: people-data-exporter
 spec:
-  schedule: "0 2 * * *"  # Run daily at 2 AM
+  schedule: "0 2 * * *"
   jobTemplate:
     spec:
       template:
@@ -304,23 +344,18 @@ spec:
                 name: people-exporter-secrets
           restartPolicy: OnFailure
 ```
+</details>
 
-### AWS ECS
+<details>
+<summary><b>AWS ECS + EventBridge</b></summary>
 
 1. Push Docker image to ECR
-2. Create task definition with environment variables
-3. Schedule task using EventBridge
+2. Create ECS task definition with environment variables
+3. Schedule task using EventBridge (CloudWatch Events)
+</details>
 
-### Google Cloud Run
-
-```bash
-gcloud run jobs create people-data-exporter \
-  --image gcr.io/your-project/people-data-exporter \
-  --set-env-vars-file .env \
-  --region us-central1
-```
-
-### Azure Container Instances
+<details>
+<summary><b>Azure Container Instances</b></summary>
 
 ```bash
 az container create \
@@ -329,6 +364,7 @@ az container create \
   --image your-registry/people-data-exporter:latest \
   --environment-variables $(cat .env)
 ```
+</details>
 
 ## Logging
 

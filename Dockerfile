@@ -8,7 +8,8 @@ WORKDIR /app
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PORT=8080
 
 # Install system dependencies
 RUN apt-get update && \
@@ -31,6 +32,10 @@ RUN useradd -m -u 1000 appuser && \
 
 USER appuser
 
-# Run the application
-CMD ["python", "-m", "src.main"]
+# Expose port for Cloud Run
+EXPOSE 8080
+
+# Run the HTTP server (Cloud Run mode)
+# Use src.main for standalone batch mode
+CMD ["python", "-m", "src.server"]
 
