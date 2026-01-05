@@ -15,8 +15,6 @@ info:
     
     **Authentication:**
     - GCP Cloud Run: OIDC token-based authentication
-    - AWS ECS: IAM-based authentication
-    - Local: No authentication (development only)
   version: 1.0.0
   contact:
     name: People Data Exporter
@@ -31,8 +29,6 @@ servers:
       hash:
         default: xxxxx
         description: Auto-generated Cloud Run service hash
-  - url: http://localhost:8080
-    description: Local Development Server
 
 tags:
   - name: health
@@ -117,8 +113,7 @@ paths:
         - Large dataset (1000+ users): 5-30 minutes
         
         **Authentication Required:**
-        - GCP: OIDC token (automatically provided by Cloud Scheduler)
-        - AWS: IAM role (automatically provided by EventBridge)
+        - OIDC token (automatically provided by Cloud Scheduler)
         
         **Note:** This endpoint may take several minutes to complete.
       operationId: triggerSync
@@ -351,19 +346,9 @@ components:
         ```bash
         gcloud auth print-identity-token
         ```
-    
-    IAMAuth:
-      type: apiKey
-      in: header
-      name: Authorization
-      description: |
-        AWS IAM-based authentication (ECS Fargate)
-        
-        Automatically handled by AWS SDK/CLI
 
 security:
   - BearerAuth: []
-  - IAMAuth: []
 
 externalDocs:
   description: Full deployment documentation

@@ -61,9 +61,6 @@ docker run -p 8081:80 \
 ### Health Check
 
 ```bash
-# Local
-curl http://localhost:8080/health
-
 # GCP Cloud Run (with authentication)
 curl -H "Authorization: Bearer $(gcloud auth print-identity-token)" \
     https://people-data-exporter-xxxxx-uc.a.run.app/health
@@ -81,9 +78,6 @@ curl -H "Authorization: Bearer $(gcloud auth print-identity-token)" \
 ### Trigger Sync
 
 ```bash
-# Local
-curl -X POST http://localhost:8080/sync
-
 # GCP Cloud Run (with authentication)
 curl -X POST \
     -H "Authorization: Bearer $(gcloud auth print-identity-token)" \
@@ -114,7 +108,9 @@ curl -X POST \
 ### Service Info
 
 ```bash
-curl http://localhost:8080/
+# GCP Cloud Run (with authentication)
+curl -H "Authorization: Bearer $(gcloud auth print-identity-token)" \
+    https://people-data-exporter-xxxxx-uc.a.run.app/
 ```
 
 **Response:**
@@ -142,25 +138,6 @@ TOKEN=$(gcloud auth print-identity-token)
 # Make request
 curl -H "Authorization: Bearer $TOKEN" \
     https://your-service-url/health
-```
-
-### AWS ECS Fargate
-
-Uses IAM-based authentication (automatically handled by EventBridge).
-
-For manual testing with AWS credentials:
-
-```bash
-# Using AWS CLI to sign requests
-aws-curl https://your-service-url/health
-```
-
-### Local Development
-
-No authentication required:
-
-```bash
-curl http://localhost:8080/health
 ```
 
 ## Generating Client SDKs
@@ -223,7 +200,6 @@ newman run openapi.json
 
 ### Set up health check monitoring:
 
-**GCP:**
 ```bash
 gcloud monitoring uptime-checks create https health-check \
     --resource-type=url \
@@ -232,28 +208,13 @@ gcloud monitoring uptime-checks create https health-check \
     --path=/health
 ```
 
-**AWS CloudWatch:**
-```bash
-aws cloudwatch put-metric-alarm \
-    --alarm-name people-exporter-health \
-    --alarm-description "Health check for People Data Exporter" \
-    --metric-name HealthCheckStatus \
-    --namespace AWS/Route53
-```
-
-## Integration with API Gateways
+## Integration with API Gateway
 
 ### GCP API Gateway
 
 1. Upload `openapi.yaml` to API Gateway
 2. Configure authentication and rate limiting
-3. Deploy
-
-### AWS API Gateway
-
-1. Import `openapi.yaml` to API Gateway
-2. Configure integrations with ECS
-3. Deploy to stage
+3. Deploy to production
 
 ## Versioning
 
@@ -275,7 +236,7 @@ For issues or questions:
 ## Related Documentation
 
 - [GCP Deployment Guide](../GCP_DEPLOYMENT.md)
-- [AWS Deployment Guide](../AWS_DEPLOYMENT.md)
-- [API Testing Guide](../deploy/test-endpoints.sh)
-- [Health Check Documentation](../src/server.py)
+- [Quick Start Guide](../QUICKSTART_GCP.md)
+- [API Testing Script](../deploy/test-endpoints.sh)
+- [Server Implementation](../src/server.py)
 

@@ -306,15 +306,28 @@ export GCP_PROJECT_ID="your-project-id"
 
 # 3. Test
 ./deploy/test-endpoints.sh
+
+# 4. Grant IAM permissions
+gcloud run services add-iam-policy-binding people-data-exporter \
+  --region=us-central1 \
+  --member="user:your-email@example.com" \
+  --role="roles/run.invoker"
 ```
 
 📖 **Full Guide:** [GCP_DEPLOYMENT.md](./GCP_DEPLOYMENT.md)  
 🚀 **Quick Start:** [QUICKSTART_GCP.md](./QUICKSTART_GCP.md)
 
 **Endpoints:**
-- `GET /health` - Health check for monitoring
-- `POST /sync` - Trigger data sync manually or via cron
+- `GET /health` - Health check for monitoring (optional auth)
+- `POST /sync` - Trigger data sync manually or via cron (**requires auth** 🔒)
 - `GET /` - Service information
+
+**Authentication:**
+All sync operations require:
+- ✅ Valid Google Cloud identity token
+- ✅ Cloud Run Invoker permission (`roles/run.invoker`)
+
+📖 **Authentication Guide:** [AUTHENTICATION.md](./AUTHENTICATION.md)
 
 ---
 
@@ -344,14 +357,6 @@ spec:
                 name: people-exporter-secrets
           restartPolicy: OnFailure
 ```
-</details>
-
-<details>
-<summary><b>AWS ECS + EventBridge</b></summary>
-
-1. Push Docker image to ECR
-2. Create ECS task definition with environment variables
-3. Schedule task using EventBridge (CloudWatch Events)
 </details>
 
 <details>

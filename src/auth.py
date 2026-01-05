@@ -1,0 +1,232 @@
+"""Authentication and authorization for Cloud Run deployment."""
+import logging
+import os
+from functools import wraps
+from typing import Optional, Tuple
+
+from flask import request, jsonify
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token
+from google.cloud import resourcemanager_v3
+from google.iam.v1 import iam_policy_pb2
+
+
+logger = logging.getLogger(__name__)
+
+
+class AuthError(Exception):
+    """Custom exception for authentication errors."""
+    def __init__(self, message: str, status_code: int = 401):
+        self.message = message
+        self.status_code = status_code
+        super().__init__(self.message)
+
+
+def verify_token(token: str) -> dict:
+    """
+    Verify and decode Google Cloud identity token.
+    
+    Args:
+        token: The Bearer token from Authorization header
+        
+    Returns:
+        Decoded token payload containing user information
+        
+    Raises:
+        AuthError: If token is invalid or verification fails
+    """
+    try:
+        request_adapter = google_requests.Request()
+        id_info = id_token.verify_oauth2_token(
+            token,
+            request_adapter
+        )
+        
+        logger.debug(f"Token verified for email: {id_info.get('email')}")
+        return id_info
+        
+    except ValueError as e:
+        logger.warning(f"Token verification failed: {e}")
+        raise AuthError("Invalid authentication token", 401)
+    except Exception as e:
+        logger.error(f"Token verification error: {e}")
+        raise AuthError("Authentication failed", 401)
+
+
+def check_cloud_run_invoker_permission(email: str, project_id: str) -> bool:
+    """
+    Check if user has Cloud Run Invoker permission in the project.
+    
+    Args:
+        email: User's email address
+        project_id: GCP project ID
+        
+    Returns:
+        True if user has permission, False otherwise
+    """
+    try:
+        client = resourcemanager_v3.ProjectsClient()
+        
+        resource = f"projects/{project_id}"
+        
+        request_obj = iam_policy_pb2.TestIamPermissionsRequest(
+            resource=resource,
+            permissions=["run.routes.invoke"]
+        )
+        
+        response = client.test_iam_permissions(request=request_obj)
+        
+        has_permission = "run.routes.invoke" in response.permissions
+        
+        if has_permission:
+            logger.info(f"User {email} has Cloud Run Invoker permission")
+        else:
+            logger.warning(f"User {email} does NOT have Cloud Run Invoker permission")
+            
+        return has_permission
+        
+    except Exception as e:
+        logger.error(f"Failed to check IAM permissions: {e}")
+        return False
+
+
+def extract_token_from_header() -> Optional[str]:
+    """
+    Extract bearer token from Authorization header.
+    
+    Returns:
+        The token string or None if not found
+    """
+    auth_header = request.headers.get('Authorization', '')
+    
+    if not auth_header:
+        return None
+    
+    parts = auth_header.split()
+    
+    if len(parts) != 2 or parts[0].lower() != 'bearer':
+        return None
+    
+    return parts[1]
+
+
+def require_auth(f):
+    """
+    Decorator to require authentication and authorization for endpoints.
+    
+    Verifies:
+    1. Valid Google Cloud identity token is provided
+    2. User has Cloud Run Invoker permission in the project
+    
+    Usage:
+        @app.route('/protected')
+        @require_auth
+        def protected_endpoint():
+            return {'message': 'success'}
+    """
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        try:
+            token = extract_token_from_header()
+            
+            if not token:
+                logger.warning("No authorization token provided")
+                return jsonify({
+                    'status': 'error',
+                    'error': 'unauthorized',
+                    'message': 'Authorization token required. Please provide a Bearer token in the Authorization header.'
+                }), 401
+            
+            token_info = verify_token(token)
+            
+            email = token_info.get('email')
+            if not email:
+                logger.warning("Token does not contain email")
+                return jsonify({
+                    'status': 'error',
+                    'error': 'unauthorized',
+                    'message': 'Invalid token: email not found'
+                }), 401
+            
+            project_id = os.environ.get('GCP_PROJECT_ID') or os.environ.get('GOOGLE_CLOUD_PROJECT')
+            if not project_id:
+                logger.error("GCP_PROJECT_ID or GOOGLE_CLOUD_PROJECT environment variable not set")
+                return jsonify({
+                    'status': 'error',
+                    'error': 'configuration_error',
+                    'message': 'Server configuration error: project ID not set'
+                }), 500
+            
+            has_permission = check_cloud_run_invoker_permission(email, project_id)
+            
+            if not has_permission:
+                logger.warning(f"Access denied for {email}: insufficient permissions")
+                return jsonify({
+                    'status': 'error',
+                    'error': 'forbidden',
+                    'message': f'Access denied. User {email} does not have Cloud Run Invoker permission in project {project_id}.'
+                }), 403
+            
+            logger.info(f"Access granted for {email}")
+            
+            request.user_email = email
+            request.user_info = token_info
+            
+            return f(*args, **kwargs)
+            
+        except AuthError as e:
+            return jsonify({
+                'status': 'error',
+                'error': 'unauthorized',
+                'message': e.message
+            }), e.status_code
+            
+        except Exception as e:
+            logger.error(f"Authorization error: {e}", exc_info=True)
+            return jsonify({
+                'status': 'error',
+                'error': 'authorization_error',
+                'message': 'Failed to verify authorization'
+            }), 500
+    
+    return decorated_function
+
+
+def optional_auth(f):
+    """
+    Decorator to optionally authenticate requests.
+    
+    If a token is provided, it will be verified, but if no token
+    is provided, the request will still proceed. Useful for endpoints
+    that should work both authenticated and unauthenticated.
+    
+    Usage:
+        @app.route('/optional')
+        @optional_auth
+        def optional_endpoint():
+            user = getattr(request, 'user_email', None)
+            return {'user': user or 'anonymous'}
+    """
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        try:
+            token = extract_token_from_header()
+            
+            if token:
+                token_info = verify_token(token)
+                request.user_email = token_info.get('email')
+                request.user_info = token_info
+            else:
+                request.user_email = None
+                request.user_info = None
+            
+            return f(*args, **kwargs)
+            
+        except Exception as e:
+            logger.warning(f"Optional auth failed: {e}")
+            request.user_email = None
+            request.user_info = None
+            return f(*args, **kwargs)
+    
+    return decorated_function
+

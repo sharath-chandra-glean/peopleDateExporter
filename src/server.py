@@ -1,43 +1,58 @@
 """HTTP server for Cloud Run deployment."""
 import logging
 import os
-import sys
 from datetime import datetime
 from flask import Flask, jsonify, request
 from werkzeug.exceptions import HTTPException
 
 from src.main import PeopleDataExporter
+from src.auth import require_auth, optional_auth
 
 app = Flask(__name__)
 logger = logging.getLogger(__name__)
 
 
 @app.route('/health', methods=['GET'])
+@optional_auth
 def health_check():
     """
     Health check endpoint.
     
     Returns 200 if service is healthy and can accept requests.
+    Authentication is optional for this endpoint.
     """
-    return jsonify({
+    user = getattr(request, 'user_email', None)
+    
+    response = {
         'status': 'healthy',
         'service': 'people-data-exporter',
         'timestamp': datetime.utcnow().isoformat()
-    }), 200
+    }
+    
+    if user:
+        response['authenticated_user'] = user
+    
+    return jsonify(response), 200
 
 
 @app.route('/sync', methods=['POST'])
+@require_auth
 def trigger_sync():
     """
     Trigger the data sync process.
     
+    Requires authentication and Cloud Run Invoker permission.
+    
     Returns:
         200: Sync completed successfully
+        401: Unauthorized (invalid or missing token)
+        403: Forbidden (insufficient permissions)
         500: Sync failed
     """
     start_time = datetime.utcnow()
+    user_email = getattr(request, 'user_email', 'unknown')
     
-    logger.info("Sync triggered via HTTP endpoint")
+    logger.info(f"Sync triggered via HTTP endpoint by user: {user_email}")
     
     try:
         exporter = PeopleDataExporter()
@@ -49,6 +64,7 @@ def trigger_sync():
         return jsonify({
             'status': 'success',
             'message': 'Data sync completed successfully',
+            'triggered_by': user_email,
             'start_time': start_time.isoformat(),
             'end_time': end_time.isoformat(),
             'duration_seconds': duration
