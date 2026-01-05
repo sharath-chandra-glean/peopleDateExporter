@@ -36,14 +36,14 @@ def get_project_id() -> str:
     if _cached_project_id:
         return _cached_project_id
     
-    # try:
-    #     _, project_id = google.auth.default()
-    #     if project_id:
-    #         _cached_project_id = project_id
-    #         logger.info(f"Detected GCP project ID: {project_id}")
-    #         return project_id
-    # except Exception as e:
-    #     logger.warning(f"Could not detect project from default credentials: {e}")
+    try:
+        _, project_id = google.auth.default()
+        if project_id:
+            _cached_project_id = project_id
+            logger.info(f"Detected GCP project ID: {project_id}")
+            return project_id
+    except Exception as e:
+        logger.warning(f"Could not detect project from default credentials: {e}")
     
     project_id = os.environ.get('GOOGLE_CLOUD_PROJECT') or os.environ.get('GCP_PROJECT') or os.environ.get('GCLOUD_PROJECT')
     if project_id:
@@ -107,7 +107,9 @@ def check_cloud_run_invoker_permission(email: str, project_id: str) -> bool:
     Returns:
         True if user has permission, False otherwise
     """
+    logger.info(f"Checking IAM permissions for {email} in project {project_id}")
     try:
+        
         client = resourcemanager_v3.ProjectsClient()
         
         resource = f"projects/{project_id}"
@@ -135,6 +137,7 @@ def check_cloud_run_invoker_permission(email: str, project_id: str) -> bool:
         return has_permission
         
     except Exception as e:
+        logger.error("IN here")
         logger.error(f"Failed to check IAM permissions: {e}")
         return False
 
@@ -175,6 +178,7 @@ def require_auth(f):
     """
     @wraps(f)
     def decorated_function(*args, **kwargs):
+        logger.info(f"Decorated function called: {f.__name__}")
         try:
             token = extract_token_from_header()
             
@@ -208,7 +212,7 @@ def require_auth(f):
                 }), 500
             
             logger.info(f"Checking IAM permissions for {email} in project {project_id}")
-            
+
             has_permission = check_cloud_run_invoker_permission(email, project_id)
             
             if not has_permission:

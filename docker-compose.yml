@@ -23,6 +23,9 @@ services:
     container_name: people-data-exporter-server
     env_file:
       - .env
+    volumes:
+      # Needed for ADC to work in local development
+      - ~/.config/gcloud:/app/.config/gcloud:ro
     environment:
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - DRY_RUN=${DRY_RUN:-false}
