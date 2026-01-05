@@ -258,25 +258,33 @@ curl https://your-service/health
 
 ## Environment Variables
 
-Required for auth to work:
+**No configuration needed!** The system automatically detects the GCP project ID from the Cloud Run environment.
 
+**Detection method:**
+1. Uses `google.auth.default()` to get project from Application Default Credentials (ADC)
+2. Falls back to environment variables if needed: `GOOGLE_CLOUD_PROJECT`, `GCP_PROJECT`, `GCLOUD_PROJECT`
+
+**For local development only:**
 ```bash
-# Set automatically by Cloud Run (preferred)
-GOOGLE_CLOUD_PROJECT=your-project-id
+# Option 1: Set environment variable
+export GOOGLE_CLOUD_PROJECT=your-project-id
 
-# Or set manually
-GCP_PROJECT_ID=your-project-id
+# Option 2: Use gcloud auth (recommended)
+gcloud auth application-default login
+gcloud config set project your-project-id
 ```
+
+Cloud Run automatically provides the project context, so no manual configuration is required in production.
 
 ## Troubleshooting
 
 ### Auth Not Working?
 
-1. **Check environment variable:**
+1. **Project ID detection (automatic in Cloud Run):**
    ```bash
-   gcloud run services describe people-data-exporter \
-     --region=us-central1 \
-     --format="value(spec.template.spec.containers[0].env)"
+   # Cloud Run sets this automatically - no action needed
+   # For local testing, authenticate with gcloud:
+   gcloud auth application-default login
    ```
 
 2. **Verify IAM permissions:**

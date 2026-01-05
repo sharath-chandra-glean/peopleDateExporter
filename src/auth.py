@@ -2,16 +2,59 @@
 import logging
 import os
 from functools import wraps
-from typing import Optional, Tuple
+from typing import Optional
 
 from flask import request, jsonify
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
 from google.cloud import resourcemanager_v3
 from google.iam.v1 import iam_policy_pb2
+import google.auth
 
 
 logger = logging.getLogger(__name__)
+
+# Cache the project ID after first retrieval
+_cached_project_id: Optional[str] = None
+
+
+def get_project_id() -> str:
+    """
+    Get the GCP project ID from the Cloud Run environment.
+    
+    Cloud Run automatically sets the project context. This function
+    retrieves it from the application default credentials.
+    
+    Returns:
+        The GCP project ID where the Cloud Run service is running
+        
+    Raises:
+        RuntimeError: If project ID cannot be determined
+    """
+    global _cached_project_id
+    
+    if _cached_project_id:
+        return _cached_project_id
+    
+    # try:
+    #     _, project_id = google.auth.default()
+    #     if project_id:
+    #         _cached_project_id = project_id
+    #         logger.info(f"Detected GCP project ID: {project_id}")
+    #         return project_id
+    # except Exception as e:
+    #     logger.warning(f"Could not detect project from default credentials: {e}")
+    
+    project_id = os.environ.get('GOOGLE_CLOUD_PROJECT') or os.environ.get('GCP_PROJECT') or os.environ.get('GCLOUD_PROJECT')
+    if project_id:
+        _cached_project_id = project_id
+        logger.info(f"Using project ID from environment: {project_id}")
+        return project_id
+    
+    raise RuntimeError(
+        "Unable to determine GCP project ID. This service must run in a GCP environment "
+        "(Cloud Run, GCE, GKE, etc.) where the project context is automatically available."
+    )
 
 
 class AuthError(Exception):
@@ -68,13 +111,19 @@ def check_cloud_run_invoker_permission(email: str, project_id: str) -> bool:
         client = resourcemanager_v3.ProjectsClient()
         
         resource = f"projects/{project_id}"
+
+        logger.info(f"IAM permissions resource: {resource}")
         
         request_obj = iam_policy_pb2.TestIamPermissionsRequest(
             resource=resource,
             permissions=["run.routes.invoke"]
         )
         
+        logger.info(f"IAM permissions request: {request_obj}")
+        
         response = client.test_iam_permissions(request=request_obj)
+
+        logger.info(f"IAM permissions response: {response}")
         
         has_permission = "run.routes.invoke" in response.permissions
         
@@ -148,14 +197,17 @@ def require_auth(f):
                     'message': 'Invalid token: email not found'
                 }), 401
             
-            project_id = os.environ.get('GCP_PROJECT_ID') or os.environ.get('GOOGLE_CLOUD_PROJECT')
-            if not project_id:
-                logger.error("GCP_PROJECT_ID or GOOGLE_CLOUD_PROJECT environment variable not set")
+            try:
+                project_id = get_project_id()
+            except RuntimeError as e:
+                logger.error(f"Failed to get project ID: {e}")
                 return jsonify({
                     'status': 'error',
                     'error': 'configuration_error',
-                    'message': 'Server configuration error: project ID not set'
+                    'message': 'Server configuration error: unable to determine GCP project ID'
                 }), 500
+            
+            logger.info(f"Checking IAM permissions for {email} in project {project_id}")
             
             has_permission = check_cloud_run_invoker_permission(email, project_id)
             

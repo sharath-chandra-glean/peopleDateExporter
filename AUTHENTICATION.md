@@ -257,15 +257,13 @@ Configure Cloud Monitoring alerts for:
 
 ## Environment Variables
 
-The auth system requires:
+The auth system **automatically detects** the GCP project ID from the Cloud Run environment. No manual configuration needed!
 
-```bash
-# Set automatically by Cloud Run
-GOOGLE_CLOUD_PROJECT=your-project-id
+**How it works:**
+1. First tries `google.auth.default()` (recommended - automatically set by Cloud Run)
+2. Falls back to environment variables: `GOOGLE_CLOUD_PROJECT`, `GCP_PROJECT`, `GCLOUD_PROJECT`
 
-# Or set manually
-GCP_PROJECT_ID=your-project-id
-```
+**Note:** When running in Cloud Run, the project ID is automatically available through Application Default Credentials. You don't need to set any environment variables for authentication to work.
 
 ## Troubleshooting
 
@@ -286,12 +284,15 @@ gcloud run services add-iam-policy-binding people-data-exporter \
   --role="roles/run.invoker"
 ```
 
-### "Server configuration error: project ID not set"
-**Problem:** GCP_PROJECT_ID environment variable missing  
-**Solution:** Set in Cloud Run service:
+### "Server configuration error: unable to determine GCP project ID"
+**Problem:** Cannot detect project ID from environment  
+**Solution:** This should only happen outside of GCP. In Cloud Run, the project ID is automatically available. If testing locally:
 ```bash
-gcloud run services update people-data-exporter \
-  --set-env-vars=GCP_PROJECT_ID=your-project-id
+# Set for local testing
+export GOOGLE_CLOUD_PROJECT=your-project-id
+
+# Or authenticate with gcloud
+gcloud auth application-default login
 ```
 
 ### Token Expires Quickly

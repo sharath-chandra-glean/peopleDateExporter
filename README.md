@@ -326,6 +326,7 @@ gcloud run services add-iam-policy-binding people-data-exporter \
 All sync operations require:
 - ✅ Valid Google Cloud identity token
 - ✅ Cloud Run Invoker permission (`roles/run.invoker`)
+- ℹ️ Project ID is automatically detected from Cloud Run environment
 
 📖 **Authentication Guide:** [AUTHENTICATION.md](./AUTHENTICATION.md)
 
