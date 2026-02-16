@@ -4,15 +4,15 @@ This document explains how authentication and authorization work for the Cloud R
 
 ## Overview
 
-The People Data Exporter uses **Google Cloud IAM-based authentication** to secure API endpoints. When deployed on Cloud Run, all sync operations require proper authentication and authorization.
+The People Data Exporter uses **Google Cloud IAM-based authentication** to secure API endpoints. When deployed on Cloud Run, all sync operations require proper authentication using Google Cloud **access tokens** and appropriate IAM permissions.
 
 ## How It Works
 
 ### 1. Token Verification
 When a request is made to a protected endpoint:
 1. The system extracts the Bearer token from the `Authorization` header
-2. Verifies it's a valid Google Cloud identity token
-3. Decodes the token to extract user information (email, etc.)
+2. Verifies it's a valid Google Cloud access token using Google's tokeninfo endpoint
+3. Extracts user information (email, scopes) from the token
 
 ### 2. IAM Permission Check
 After verifying the token:
@@ -29,12 +29,12 @@ After verifying the token:
 ### `/sync` - **REQUIRES AUTH** 🔒
 Triggers the data synchronization process.
 
-**Required:** Valid Google Cloud identity token + Cloud Run Invoker permission
+**Required:** Valid Google Cloud access token + Cloud Run Invoker permission
 
 **Example:**
 ```bash
-# Get your identity token
-TOKEN=$(gcloud auth print-identity-token)
+# Get your access token
+TOKEN=$(gcloud auth print-access-token)
 
 # Make authenticated request
 curl -X POST \
@@ -113,8 +113,8 @@ gcloud run services remove-iam-policy-binding people-data-exporter \
 ### 1. Test with Valid Token
 
 ```bash
-# Get your identity token
-TOKEN=$(gcloud auth print-identity-token)
+# Get your access token
+TOKEN=$(gcloud auth print-access-token)
 
 # Test sync endpoint
 curl -X POST \
@@ -273,7 +273,7 @@ The auth system **automatically detects** the GCP project ID from the Cloud Run 
 
 ### "Invalid authentication token"
 **Problem:** Token is malformed or expired  
-**Solution:** Get a fresh token with `gcloud auth print-identity-token`
+**Solution:** Get a fresh token with `gcloud auth print-access-token`
 
 ### "Access denied. User does not have Cloud Run Invoker permission"
 **Problem:** User lacks IAM permission  

@@ -6,7 +6,6 @@ from typing import Optional
 
 from flask import request, jsonify
 from google.auth.transport import requests as google_requests
-from google.oauth2 import id_token
 from google.cloud import resourcemanager_v3
 from google.iam.v1 import iam_policy_pb2
 import google.auth
@@ -67,32 +66,53 @@ class AuthError(Exception):
 
 def verify_token(token: str) -> dict:
     """
-    Verify and decode Google Cloud identity token.
+    Verify and decode Google Cloud access token.
     
     Args:
         token: The Bearer token from Authorization header
         
     Returns:
-        Decoded token payload containing user information
+        Token info containing user information
         
     Raises:
         AuthError: If token is invalid or verification fails
     """
     try:
+        # Use TokenInfo API to verify access token
         request_adapter = google_requests.Request()
-        id_info = id_token.verify_oauth2_token(
-            token,
-            request_adapter
+        
+        # Call Google's tokeninfo endpoint to verify the access token
+        response = request_adapter(
+            url=f'https://oauth2.googleapis.com/tokeninfo?access_token={token}',
+            method='GET'
         )
         
-        logger.debug(f"Token verified for email: {id_info.get('email')}")
-        return id_info
+        if response.status != 200:
+            raise ValueError(f"Token verification failed with status {response.status}")
+        
+        import json
+        token_info = json.loads(response.data.decode('utf-8'))
+        
+        # Verify token has not expired
+        if 'error' in token_info:
+            raise ValueError(f"Invalid token: {token_info.get('error_description', 'Unknown error')}")
+        
+        # Check if token has required scope (optional but recommended)
+        scopes = token_info.get('scope', '').split()
+        logger.debug(f"Token scopes: {scopes}")
+        
+        email = token_info.get('email')
+        if not email:
+            raise ValueError("Token does not contain email information")
+        
+        logger.debug(f"Access token verified for email: {email}")
+        return token_info
         
     except ValueError as e:
-        logger.warning(f"Token verification failed: {e}")
+        logger.warning(f"Access token verification failed: {e}")
         raise AuthError("Invalid authentication token", 401)
     except Exception as e:
-        logger.error(f"Token verification error: {e}")
+        logger.error(f"Access token verification error: {e}")
         raise AuthError("Authentication failed", 401)
 
 
@@ -167,7 +187,7 @@ def require_auth(f):
     Decorator to require authentication and authorization for endpoints.
     
     Verifies:
-    1. Valid Google Cloud identity token is provided
+    1. Valid Google Cloud access token is provided
     2. User has Cloud Run Invoker permission in the project
     
     Usage:

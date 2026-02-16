@@ -14,7 +14,7 @@ Deploy the People Data Exporter to Google Cloud Platform in ~10 minutes.
 ### 1. Set Your GCP Project
 
 ```bash
-export GCP_PROJECT_ID="your-project-id"
+export GCP_PROJECT_ID="glean-sandbox"
 export GCP_REGION="us-central1"
 
 gcloud config set project $GCP_PROJECT_ID
